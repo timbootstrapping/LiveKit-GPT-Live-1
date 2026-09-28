@@ -1,153 +1,158 @@
-<a href="https://livekit.io/">
-  <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
-</a>
+# GPT-Live-1 Voice Agent on LiveKit
 
-# LiveKit Agents starter for Python
+A voice agent that runs on OpenAI's **GPT-Live-1** speech-to-speech model through LiveKit, and books
+real appointments into **Cal.com**. The whole thing was written by Claude Code from the LiveKit
+docs, and you can run it without writing any code.
 
-A starter project for building voice AI apps with [LiveKit Agents for Python](https://github.com/livekit/agents) and [LiveKit Cloud](https://cloud.livekit.io/).
+📺 **Full walkthrough on YouTube:** [VIDEO LINK]
+📄 **Step-by-step guide with every command:** [GUIDE LINK]
 
-The starter includes:
+The demo is Riley, the front desk receptionist at Northside Dental, a made-up dental practice. Riley
+checks the calendar, offers open times, spells your email back to you letter by letter, and books
+the appointment. You can also ask Riley to switch language or accent mid-call.
 
-- A simple [voice AI assistant](https://docs.livekit.io/agents/start/voice-ai/) to extend and customize.
-- A voice pipeline built on [LiveKit Inference](https://docs.livekit.io/agents/models/inference/), which gives you access to [models](https://docs.livekit.io/agents/models/) from top labs with no extra configuration:
-  - The default LLM is Gemma 4 31B, an open-weight model [hosted by LiveKit](https://docs.livekit.io/agents/models/llm/livekit/) and tuned for voice AI.
-  - The default TTS is [Fish Audio S2.1 Pro](https://docs.livekit.io/agents/models/tts/fishaudio/), an expressive and cost-effective voice.
-  - More than 50 other models are available from OpenAI, Cartesia, Deepgram, and other providers.
-  - [Realtime models](https://docs.livekit.io/agents/models/realtime/) and many others are available through the [plugin ecosystem](https://docs.livekit.io/agents/models/#plugins).
-- [Expressive mode](https://docs.livekit.io/agents/models/tts/expressive/), on by default, so your agent's voice carries emotion and pacing that fit the conversation.
-- [Keyterms](https://docs.livekit.io/agents/models/stt/keyterms/), on by default, so speech recognition gets your names, brands, and jargon right, including names it picks up during the conversation, like a caller's.
-- [LiveKit Turn Detector](https://docs.livekit.io/agents/logic/turns/turn-detector/), which knows when the user has finished speaking, in 14 languages.
-- [Adaptive interruption handling](https://docs.livekit.io/agents/logic/turns/adaptive-interruption-handling/), which tells a real interruption from an "uh-huh" or background noise, so your agent doesn't stop talking when it shouldn't.
-- [Background voice cancellation](https://docs.livekit.io/transport/media/noise-cancellation/).
-- Session transcripts, traces, and recordings from LiveKit [Agent Observability](https://docs.livekit.io/testing/observability/).
-- [Simulations](https://docs.livekit.io/testing/simulations/) that test full conversations with your agent, run in CI on every merge to `main`.
-- A `Dockerfile` for [deploying to LiveKit Cloud](https://docs.livekit.io/deploy/agents/).
+---
 
-The starter works with any [custom web or mobile frontend](https://docs.livekit.io/frontends/) or with [telephony](https://docs.livekit.io/telephony/).
+## How it works
 
-## Using coding agents
+A classic voice agent is three models in a row: a transcriber turns speech into text, an LLM reads
+that text, and a TTS voice reads the answer out. The LLM never actually hears the caller. It reads a
+note about them.
 
-This project works with coding agents like [Claude Code](https://claude.com/product/claude-code), [Cursor](https://www.cursor.com/), and [Codex](https://openai.com/codex/).
+GPT-Live-1 hears the audio itself and talks back, voice in, voice out. And it splits the work into
+two models that run in parallel:
 
-LiveKit offers both a CLI and an [MCP server](https://docs.livekit.io/reference/developer-tools/docs-mcp/) for browsing and searching its documentation. Search returns short excerpts, so fetch the full page to read the details:
+| | What it does | Where its instructions live |
+|---|---|---|
+| **Voice model** (GPT-Live-1) | Listens, talks, handles interruptions. Says "one moment while I check the calendar" and keeps the conversation going. | `instructions=` on the `Assistant` class in `src/agent.py` |
+| **Backend model** | Thinks and calls the tools. The voice model hands work off to it. | `responses_options["instructions"]` in `src/agent.py` |
 
-```console
-lk docs search "testing my agent"
-lk docs get-page /testing/unit-tests
+The voice model never sees the tools. Only the backend does. That is why there are two prompts, and
+both are locked once a call starts.
+
+## What's in here
+
+```
+src/agent.py       the agent: GPT-Live-1 setup, both prompts, the greeting
+src/cal_tools.py   the two Cal.com tools: check_availability and book_appointment
+.env.example       every key the agent needs, empty
+AGENTS.md          instructions that make your coding agent follow LiveKit's docs
 ```
 
-The project also includes an [`AGENTS.md`](AGENTS.md) file and LiveKit's [agent skills](https://docs.livekit.io/intro/coding-agents/#agent-skills), so your coding agent follows LiveKit's best practices for workflows, handoffs, and testing, and tries its changes with the [agent debugger](https://docs.livekit.io/testing/debugger/). See the [coding agents guide](https://docs.livekit.io/intro/coding-agents/) for more details, including MCP server setup and how to update the skill.
+---
 
-## Dev setup
+## What you need
 
-Install the [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/), version 2.18.8 or later:
+**Accounts**
+- **OpenAI API key with GPT-Live access.** From [platform.openai.com](https://platform.openai.com/).
+  You need billing set up. The free tier does not get GPT-Live.
+- **LiveKit Cloud** (free tier is fine) at [cloud.livekit.io](https://cloud.livekit.io/). You still
+  need it with your own OpenAI key: LiveKit carries the audio and gives you the browser playground.
+- **Cal.com** at [cal.com](https://cal.com/), with one event type (for example a 30 minute
+  appointment) and your availability set.
+  - API key: Settings, Developer, API Keys.
+  - Event type ID: the number in the event type's URL in your dashboard.
 
-- **macOS:** `brew install livekit-cli`
-- **Linux:** `curl -sSL https://get.livekit.io/cli | bash`
-- **Windows:** `winget install LiveKit.LiveKitCLI`
+**Tools**
+- Python 3.10 or newer
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (Python package manager)
+- [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/), version 2.18.8 or later:
+  - **Windows:** `winget install LiveKit.LiveKitCLI`
+  - **macOS:** `brew install livekit-cli`
+  - **Linux:** `curl -sSL https://get.livekit.io/cli | bash`
 
-Check your version with `lk --version`. To update an existing install, see [Update the CLI](https://docs.livekit.io/reference/developer-tools/livekit-cli/#updates).
+## Run it in five steps
 
-Then create a project from this template. The CLI clones the template and configures your environment:
+**1. Clone the repo and install**
 
 ```console
-lk cloud auth
-lk agent init my-agent --template agent-starter-python
-```
-
-<details>
-<summary>Set up the project manually</summary>
-
-Clone the repository and install dependencies into a virtual environment with [uv](https://docs.astral.sh/uv/):
-
-```console
-git clone https://github.com/livekit-examples/agent-starter-python.git
-cd agent-starter-python
+git clone https://github.com/timbootstrapping/LiveKit-GPT-Live-1.git
+cd LiveKit-GPT-Live-1
 uv sync
 ```
 
-Sign up for [LiveKit Cloud](https://cloud.livekit.io/), then copy `.env.example` to `.env.local` and fill it in. To have the CLI write your project's URL and API keys into the file instead, run:
+**2. Connect LiveKit Cloud.** This logs you in and writes your LiveKit URL and keys into `.env.local`.
 
 ```console
 lk cloud auth
 lk app env --write --destination .env.local
 ```
 
-</details>
+**3. Add your other keys.** Open `.env.local` and add these lines under the LiveKit ones:
 
-## Run the agent
-
-The `lk agent console`, `lk agent dev`, and `lk agent debugger` commands run your agent on your own machine. To talk to it in your terminal:
-
-```console
-lk agent console
+```
+OPENAI_API_KEY=your-openai-key
+CAL_API_KEY=your-cal-api-key
+CAL_EVENT_TYPE_ID=your-event-type-id
+CAL_TIMEZONE=Europe/Berlin
 ```
 
-To connect it to LiveKit Cloud so a frontend, a phone call, or the [Agent Console](https://docs.livekit.io/testing/agent-console/) can reach it:
+Set `CAL_TIMEZONE` to the timezone the business works in (for example `America/New_York` or
+`Australia/Brisbane`). `.env.local` is gitignored, so your keys never get committed.
+
+**4. Start the agent**
 
 ```console
 lk agent dev
 ```
 
-To let a coding agent or a script test it one text turn at a time, use the [agent debugger](https://docs.livekit.io/testing/debugger/). Each turn prints the agent's reply along with the tool calls and handoffs behind it:
+**5. Talk to it.** The terminal prints a link to the LiveKit Agent Console. Open it in your browser,
+click **Start a session**, allow your microphone, and ask Riley for an appointment. The booking
+shows up in your Cal.com dashboard.
 
-```console
-lk agent debugger start
-lk agent debugger say "Hi, what can you do?"
-lk agent debugger stop
+Stop the agent with `Ctrl+C`.
+
+---
+
+## Make it yours
+
+Everything that makes this a dental practice lives in `src/agent.py`:
+
+- **Voice prompt** (`instructions=` in the `Assistant` class): the name, the business, how it
+  sounds, when to say "one moment", the email spelling rule.
+- **Backend prompt** (`responses_options["instructions"]`): when to check availability and the rules
+  before it is allowed to book.
+- **Greeting** (`on_enter`): the first thing it says.
+- **Voice** (`voice="marin"`): swap for another GPT-Live voice from the
+  [LiveKit GPT-Live docs](https://docs.livekit.io/agents/models/realtime/plugins/gpt-live/).
+
+You don't have to edit any of it by hand. Open the folder in Claude Code (or Cursor, or Codex) and
+describe the business you want. The included `AGENTS.md` tells the AI to check the LiveKit docs
+instead of guessing. For example:
+
+```
+Change this agent from Northside Dental to [your business]. Update the voice prompt, the backend prompt and the greeting. Keep the booking rules and the email spell-back. Read the GPT-Live page in the LiveKit docs before changing anything.
 ```
 
-In production, run the agent directly:
+## If something breaks
 
-```console
-uv run src/agent.py start
-```
+- **Access or model error when the call starts:** your OpenAI key is not enabled for GPT-Live yet,
+  or your account is on the free tier. That is an account issue, not a code issue.
+- **"The calendar isn't available right now":** `CAL_API_KEY` or `CAL_EVENT_TYPE_ID` is missing, or
+  the event type ID is not a plain number.
+- **It never offers any times:** check that your Cal.com event type has availability on the days you
+  asked about, and that `CAL_TIMEZONE` is right.
+- **Anything else:** paste the error into your coding agent and tell it to read the GPT-Live page in
+  the LiveKit docs (and the Cal.com API reference if it's about booking) before changing anything.
 
-## Frontends and telephony
+## Limits worth knowing
 
-Pair the agent with a prebuilt frontend starter, or add telephony:
+- **Audio only.** No images or video.
+- **A small set of voices** compared to a normal TTS provider, and no separate TTS on top, so no
+  voice cloning.
+- **Locked once the call starts:** the voice, both prompts and the delegation settings.
+- **Cost:** OpenAI bills per minute for the voice model plus tokens for the backend model. Check
+  [OpenAI's pricing page](https://openai.com/api/pricing/) for current numbers.
+- **This is a demo, not a production system.** It runs in the browser. Putting it on a real phone
+  line, testing it against messy real callers, monitoring it, and handling consent and AI disclosure
+  are all separate work.
 
-| Platform | Link | Description |
-|----------|----------|-------------|
-| **Web** | [`livekit-examples/agent-starter-react`](https://github.com/livekit-examples/agent-starter-react) | Web voice AI assistant with React & Next.js |
-| **iOS/macOS** | [`livekit-examples/agent-starter-swift`](https://github.com/livekit-examples/agent-starter-swift) | Native iOS, macOS, and visionOS voice AI assistant |
-| **Flutter** | [`livekit-examples/agent-starter-flutter`](https://github.com/livekit-examples/agent-starter-flutter) | Cross-platform voice AI assistant app |
-| **React Native** | [`livekit-examples/voice-assistant-react-native`](https://github.com/livekit-examples/voice-assistant-react-native) | Native mobile app with React Native & Expo |
-| **Android** | [`livekit-examples/agent-starter-android`](https://github.com/livekit-examples/agent-starter-android) | Native Android app with Kotlin & Jetpack Compose |
-| **Web Embed** | [`livekit-examples/agent-starter-embed`](https://github.com/livekit-examples/agent-starter-embed) | Voice AI widget for any website |
-| **Telephony** | [Documentation](https://docs.livekit.io/telephony/) | Add inbound or outbound calling to your agent |
+---
 
-For more options, see the [frontend guide](https://docs.livekit.io/frontends/).
+## Credits
 
-## Testing and debugging
+Built on LiveKit's [agent-starter-python](https://github.com/livekit-examples/agent-starter-python)
+template and [LiveKit Agents](https://github.com/livekit/agents). Built by Tim Kramny,
+[ximus.io](https://ximus.io).
 
-Simulations run full multi-turn conversations between a simulated user and your agent on LiveKit Cloud, then judge each transcript. The scenarios live in [`scenarios.yaml`](scenarios.yaml). Run them locally with the CLI:
-
-```console
-lk agent simulate text --scenarios scenarios.yaml
-```
-
-The `Simulations` workflow in [`.github/workflows/simulations.yml`](.github/workflows/simulations.yml) runs the same file on every merge to `main`, and on demand from the Actions tab. It doesn't run on every pull request push because each run uses real inference. See the [simulations guide](https://docs.livekit.io/testing/simulations/) for how to write scenarios and read results.
-
-To check a change turn by turn without a live session, use the [agent debugger](https://docs.livekit.io/testing/debugger/) shown in [Run the agent](#run-the-agent).
-
-To debug a running agent, open it in the [Agent Console](https://docs.livekit.io/testing/agent-console/). It shows events, tool calls, and model timing as you talk to the agent. To stream logs from a deployed agent, run `lk agent logs`.
-
-## Using this template for your own project
-
-After you create your own project from this template:
-
-- **Commit `uv.lock`.** The template doesn't track it, but your project should, for reproducible builds. If you deploy to LiveKit Cloud, commit `livekit.toml` too.
-- **Add repository secrets.** Add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` as [repository secrets](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/using-secrets-in-github-actions) so the simulations can run in CI.
-
-## Deploying to production
-
-To deploy the agent to LiveKit Cloud or another environment with the included `Dockerfile`, see the [deployment guide](https://docs.livekit.io/deploy/agents/).
-
-## Self-hosted LiveKit
-
-You can self-host LiveKit instead of using LiveKit Cloud. See the [self-hosting guide](https://docs.livekit.io/transport/self-hosting/local/). If you self-host, use [model plugins](https://docs.livekit.io/agents/models/#plugins) instead of LiveKit Inference, and remove the [LiveKit Cloud noise cancellation](https://docs.livekit.io/transport/media/noise-cancellation/) plugin.
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT licensed. See [LICENSE](LICENSE).
